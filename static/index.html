@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>КБЖУ Калькулятор Cloud</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container { max-width: 800px; margin: 0 auto; padding: 10px; }
+        .result-block { padding: 10px; border-radius: 8px; margin-bottom: 8px; }
+        .result-block-per100 { background: #e3f2fd; border-left: 4px solid #2196f3; }
+        .result-block-total { background: #e8f5e9; border-left: 4px solid #4caf50; }
+        .result-block-portion { background: #fff3e0; border-left: 4px solid #ff9800; }
+        .recipe-name-badge { background: #28a745; color: white; padding: 4px 12px; border-radius: 20px; display: inline-block; margin-bottom: 8px; }
+        .sync-status { font-size: 12px; color: #28a745; }
+        .sync-status.offline { color: #dc3545; }
+        .card { margin-bottom: 12px; }
+        .history-item { background: #f8f9fa; border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 4px solid #6c757d; }
+        .history-item.portion-done { border-left-color: #ff9800; }
+        .btn { margin-bottom: 4px; }
+        .suggestions { position: relative; }
+        .suggestions-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid #667eea; border-top: none; border-radius: 0 0 10px 10px; max-height: 150px; overflow-y: auto; z-index: 100; display: none; }
+        .suggestion-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #eee; }
+        .suggestion-item:hover { background: #f0f0f0; }
+        .product-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f8f9fa; border-radius: 8px; margin-bottom: 4px; }
+        .cloud-badge { background: #667eea; color: white; padding: 2px 10px; border-radius: 12px; font-size: 11px; margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mt-3">🍲 КБЖУ Калькулятор <span class="cloud-badge">☁️ Cloud</span></h1>
+        <div class="text-center mb-3">
+            <span class="sync-status" id="syncStatus">🔄 Синхронизация...</span>
+        </div>
+
+        <ul class="nav nav-tabs" id="mainTabs">
+            <li class="nav-item"><button class="nav-link active" data-tab="calc">⚖️ Калькулятор</button></li>
+            <li class="nav-item"><button class="nav-link" data-tab="recipes">📖 Рецепты</button></li>
+            <li class="nav-item"><button class="nav-link" data-tab="history">📜 История</button></li>
+            <li class="nav-item"><button class="nav-link" data-tab="products">📦 Продукты</button></li>
+        </ul>
+
+        <!-- Калькулятор -->
+        <div class="tab-content active" id="tab-calc">
+            <div class="card">
+                <label>📝 Название блюда</label>
+                <input type="text" class="form-control" id="recipeNameDisplay" placeholder="Например: Куриный суп" />
+            </div>
+            <div class="card">
+                <h5>🥩 Ингредиенты</h5>
+                <ul class="list-group" id="ingredientList"></ul>
+                <div class="suggestions mt-2">
+                    <div class="input-group">
+                        <input class="form-control" id="productSearch" placeholder="Поиск продукта..." />
+                        <button class="btn btn-primary" id="addIngredientBtn">➕</button>
+                    </div>
+                    <div class="suggestions-list" id="productSuggestions"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="row">
+                    <div class="col-6">
+                        <label>🍳 Способ</label>
+                        <select class="form-select" id="cookingMethod">
+                            <option value="boil">Варка</option>
+                            <option value="steam">На пару</option>
+                            <option value="stew">Тушение</option>
+                            <option value="bake">Запекание</option>
+                            <option value="fry">Жарка</option>
+                            <option value="grill">Гриль</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label>📊 Коэф.</label>
+                        <input type="number" class="form-control" id="cookingCoefficient" value="0.85" step="0.01" min="0.5" max="1.0" />
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <label>⚖️ Вес готового блюда (г)</label>
+                <input type="number" class="form-control" id="cookedWeight" placeholder="Например, 1050" />
+            </div>
+            <div class="card">
+                <button class="btn btn-success w-100" id="calculateBtn">🧮 Рассчитать</button>
+                <div class="row mt-2">
+                    <div class="col-6"><button class="btn btn-primary w-100" id="saveRecipeBtn">💾 Рецепт</button></div>
+                    <div class="col-6"><button class="btn btn-outline-secondary w-100" id="clearAllBtn">🗑️ Очистить</button></div>
+                </div>
+            </div>
+            <div class="card" id="resultArea">
+                <h5>📊 Результаты</h5>
+                <p class="text-muted">После расчёта здесь появятся данные</p>
+            </div>
+            <div class="card" id="portionArea" style="display:none; border:2px solid #ff9800;">
+                <h5>📦 Расчёт порции</h5>
+                <div class="row">
+                    <div class="col-8"><input type="number" class="form-control" id="portionWeightInput" placeholder="Вес порции (г)" /></div>
+                    <div class="col-4"><button class="btn btn-warning w-100" id="calculatePortionBtn">🧮</button></div>
+                </div>
+                <div id="portionResultContent" class="mt-2 text-muted">Укажите вес порции и нажмите кнопку</div>
+            </div>
+        </div>
+
+        <!-- Рецепты -->
+        <div class="tab-content" id="tab-recipes">
+            <div id="recipeList"></div>
+        </div>
+
+        <!-- История -->
+        <div class="tab-content" id="tab-history">
+            <div class="mb-2">
+                <button class="btn btn-danger btn-sm" id="clearHistoryBtn">🗑️ Очистить историю</button>
+                <button class="btn btn-success btn-sm" onclick="exportHistory()">⬇ Экспорт</button>
+                <button class="btn btn-warning btn-sm" onclick="document.getElementById('importHistoryInput').click()">⬆ Импорт</button>
+                <input type="file" id="importHistoryInput" accept=".json" style="display:none" onchange="importHistory(event)" />
+            </div>
+            <div id="historyList"></div>
+        </div>
+
+        <!-- Продукты -->
+        <div class="tab-content" id="tab-products">
+            <div class="row mb-2">
+                <div class="col-8"><input class="form-control" id="searchProducts" placeholder="Поиск продуктов..." /></div>
+                <div class="col-4 text-end"><button class="btn btn-primary" id="addProductBtn">➕ Добавить</button></div>
+            </div>
+            <div id="productList"></div>
+        </div>
+    </div>
+
+    <!-- Модалка продукта -->
+    <div class="modal fade" id="productModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 id="productModalTitle">Добавить продукт</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <input type="hidden" id="editProductId" />
+                    <div class="mb-2"><label>Название</label><input class="form-control" id="prodName" /></div>
+                    <div class="row"><div class="col-6"><label>Белки</label><input class="form-control" id="prodProtein" type="number" step="0.1" /></div>
+                    <div class="col-6"><label>Жиры</label><input class="form-control" id="prodFat" type="number" step="0.1" /></div></div>
+                    <div class="row"><div class="col-6"><label>Углеводы</label><input class="form-control" id="prodCarbs" type="number" step="0.1" /></div>
+                    <div class="col-6"><label>Ккал</label><input class="form-control" id="prodKcal" type="number" step="0.1" /></div></div>
+                </div>
+                <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button><button class="btn btn-primary" id="saveProductModalBtn">Сохранить</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка рецепта -->
+    <div class="modal fade" id="recipeModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5>Сохранить рецепт</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <input type="hidden" id="editRecipeId" />
+                    <label>Название рецепта</label>
+                    <input class="form-control" id="recipeModalName" placeholder="Введите название..." />
+                </div>
+                <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button><button class="btn btn-primary" id="saveRecipeModalBtn">Сохранить</button></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
+        let allProducts = [];
+        let currentIngredients = [];
+        let lastCalculation = null;
+        let productModal = null;
+        let recipeModal = null;
+
+        // ===== API =====
+        const API = {
+            products: '/api/products',
+            recipes: '/api/recipes',
+            history: '/api/history',
+            calculate: '/api/calculate'
+        };
+
+        // ===== СТАТУС СИНХРОНИЗАЦИИ =====
+        function setSyncStatus(online) {
+            const el = document.getElementById('syncStatus');
+            if (online) {
+                el.textContent = '✅ Синхронизация работает';
+                el.className = 'sync-status';
+            } else {
+                el.textContent = '❌ Офлайн режим (данные на устройстве)';
+                el.className = 'sync-status offline';
+            }
+        }
+
+        // ===== ЗАГРУЗКА ДАННЫХ С СЕРВЕРА =====
+        async function loadProducts() {
+            try {
+                const resp = await fetch(API.products);
+                if (!resp.ok) throw new Error('Ошибка загрузки');
+                allProducts = await resp.json();
+                renderProductList();
+                setSyncStatus(true);
+            } catch (e) {
+                console.error('Ошибка загрузки продуктов:', e);
+                setSyncStatus(false);
+                // Пробуем загрузить из localStorage
+                const local = localStorage.getItem('products_offline');
+                if (local) {
+                    allProducts = JSON.parse(local);
+                    renderProductList();
+                }
+            }
+        }
+
+        async function loadRecipes() {
+            try {
+                const resp = await fetch(API.recipes);
+                if (!resp.ok) throw new Error('Ошибка загрузки');
+                const recipes = await resp.json();
+                renderRecipes(recipes);
+            } catch (e) {
+                console.error('Ошибка загрузки рецептов:', e);
+                const local = localStorage.getItem('recipes_offline');
+                if (local) {
+                    renderRecipes(JSON.parse(local));
+                }
+            }
+        }
+
+        async function loadHistory() {
+            try {
+                const resp = await fetch(API.history);
+                if (!resp.ok) throw new Error('Ошибка загрузки');
+                const history = await resp.json();
+                renderHistory(history);
+            } catch (e) {
+                console.error('Ошибка загрузки истории:', e);
+                const local = localStorage.getItem('history_offline');
+                if (local) {
+                    renderHistory(JSON.parse(local));
+                }
+            }
+        }
+
+        // ===== ОТОБРАЖЕНИЕ ПРОДУКТОВ =====
+        function renderProductList(filter = '') {
+            const container = document.getElementById('productList');
+            let list = allProducts;
+            if (filter) {
+                const f = filter.toLowerCase();
+                list = allProducts.filter(p => p.name.toLowerCase().includes(f));
+            }
+            if (!list.length) {
+                container.innerHTML = '<div class="alert alert-info">Нет продуктов</div>';
+                return;
+            }
+            let html = '';
+            list.forEach(p => {
+                html += `<div class="product-item">
+                    <span><strong>${p.name}</strong> (Б:${p.protein} Ж:${p.fat} У:${p.carbs} К:${p.kcal})</span>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editProduct(${p.id})">✏️</button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteProduct(${p.id})">🗑️</button>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // ===== ДОБАВЛЕНИЕ ПРОДУКТА =====
+        document.getElementById('addProductBtn').addEventListener('click', function() {
+            document.getElementById('productModalTitle').textContent = 'Добавить продукт';
+            document.getElementById('editProductId').value = '';
+            document.getElementById('prodName').value = '';
+            document.getElementById('prodProtein').value = '';
+            document.getElementById('prodFat').value = '';
+            document.getElementById('prodCarbs').value = '';
+            document.getElementById('prodKcal').value = '';
+            if (!productModal) productModal = new bootstrap.Modal(document.getElementById('productModal'));
+            productModal.show();
+        });
+
+        async function editProduct(id) {
+            const p = allProducts.find(x => x.id === id);
+            if (!p) return;
+            document.getElementById('productModalTitle').textContent = 'Редактировать продукт';
+            document.getElementById('editProductId').value = id;
+            document.getElementById('prodName').value = p.name;
+            document.getElementById('prodProtein').value = p.protein;
+            document.getElementById('prodFat').value = p.fat;
+            document.getElementById('prodCarbs').value = p.carbs;
+            document.getElementById('prodKcal').value = p.kcal;
+            if (!productModal) productModal = new bootstrap.Modal(document.getElementById('productModal'));
+            productModal.show();
+        }
+
+        document.getElementById('saveProductModalBtn').addEventListener('click', async function() {
+            const id = document.getElementById('editProductId').value;
+            const name = document.getElementById('prodName').value.trim();
+            const protein = parseFloat(document.getElementById('prodProtein').value);
+            const fat = parseFloat(document.getElementById('prodFat').value);
+            const carbs = parseFloat(document.getElementById('prodCarbs').value);
+            const kcal = parseFloat(document.getElementById('prodKcal').value);
+            
+            if (!name || isNaN(protein) || isNaN(fat) || isNaN(carbs) || isNaN(kcal)) {
+                alert('Заполните все поля');
+                return;
+            }
+            
+            const payload = { name, protein, fat, carbs, kcal };
+            const url = id ? `/api/products/${id}` : '/api/products';
+            const method = id ? 'PUT' : 'POST';
+            
+            try {
+                const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (resp.ok) {
+                    if (productModal) productModal.hide();
+                    await loadProducts();
+                    alert('✅ Продукт сохранён в облаке!');
+                } else {
+                    alert('❌ Ошибка сохранения');
+                }
+            } catch (e) {
+                alert('❌ Ошибка соединения. Попробуйте позже.');
+            }
+        });
+
+        async function deleteProduct(id) {
+            if (!confirm('Удалить продукт?')) return;
+            try {
+                const resp = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+                if (resp.ok) {
+                    await loadProducts();
+                    alert('✅ Продукт удалён');
+                }
+            } catch (e) {
+                alert('❌ Ошибка соединения');
+            }
+        }
+
+        document.getElementById('searchProducts').addEventListener('input', function() {
+            renderProductList(this.value);
+        });
+
+        // ===== РЕЦЕПТЫ =====
+        function renderRecipes(recipes) {
+            const container = document.getElementById('recipeList');
+            if (!recipes || !recipes.length) {
+                container.innerHTML = '<div class="alert alert-info">Нет рецептов</div>';
+                return;
+            }
+            let html = '<div class="row">';
+            recipes.forEach(r => {
+                html += `<div class="col-md-4 mb-2"><div class="card">
+                    <div class="card-body">
+                        <h5>📖 ${r.name}</h5>
+                        <p class="text-muted">${r.ingredients.length} ингр.</p>
+                        <button class="btn btn-sm btn-primary" onclick="loadRecipe(${r.id})">📋 Загрузить</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteRecipe(${r.id})">🗑️</button>
+                    </div>
+                </div></div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        async function deleteRecipe(id) {
+            if (!confirm('Удалить рецепт?')) return;
+            try {
+                const resp = await fetch(`/api/recipes/${id}`, { method: 'DELETE' });
+                if (resp.ok) {
+                    await loadRecipes();
+                    alert('✅ Рецепт удалён');
+                }
+            } catch (e) {
+                alert('❌ Ошибка соединения');
+            }
+        }
+
+        async function loadRecipe(id) {
+            try {
+                const resp = await fetch(`/api/recipes/${id}`);
+                if (!resp.ok) throw new Error();
+                const recipe = await resp.json();
+                switchTab('calc');
+                currentIngredients = recipe.ingredients.map(ing => ({
+                    productId: ing.product_id,
+                    productName: allProducts.find(p => p.id === ing.product_id)?.name || 'Неизвестно',
+                    weight: ing.weight_grams
+                }));
+                renderIngredients();
+                document.getElementById('recipeNameDisplay').value = recipe.name;
+                alert(`✅ Рецепт "${recipe.name}" загружен`);
+            } catch (e) {
+                alert('❌ Ошибка загрузки рецепта');
+            }
+        }
+
+        // ===== ИСТОРИЯ =====
+        function renderHistory(history) {
+            const container = document.getElementById('historyList');
+            if (!history || !history.length) {
+                container.innerHTML = '<div class="alert alert-info">История пуста</div>';
+                return;
+            }
+            let html = '';
+            history.forEach(item => {
+                html += `<div class="history-item ${item.portion_calculated ? 'portion-done' : ''}">
+                    <div class="row">
+                        <div class="col-8">
+                            <strong>📅 ${new Date(item.date).toLocaleString()}</strong>
+                            ${item.recipe_name ? `<span class="badge bg-success">📖 ${item.recipe_name}</span>` : ''}
+                        </div>
+                        <div class="col-4 text-end">
+                            <button class="btn btn-sm btn-primary" onclick="loadHistoryItem(${item.id})">📋</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteHistory(${item.id})">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="row mt-1">
+                        <div class="col-4"><small>🔥 ${item.per100.kcal.toFixed(1)} ккал/100г</small></div>
+                        <div class="col-4"><small>📦 ${item.total.kcal.toFixed(1)} ккал</small></div>
+                        ${item.portion_calculated ? `<div class="col-4"><small>📦 ${item.portion.kcal.toFixed(1)} ккал (${item.portion_weight}г)</small></div>` : ''}
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        async function deleteHistory(id) {
+            if (!confirm('Удалить запись?')) return;
+            try {
+                await fetch(`/api/history/${id}`, { method: 'DELETE' });
+                await loadHistory();
+            } catch (e) {
+                alert('❌ Ошибка');
+            }
+        }
+
+        document.getElementById('clearHistoryBtn').addEventListener('click', async function() {
+            if (!confirm('Очистить всю историю?')) return;
+            try {
+                await fetch('/api/history', { method: 'DELETE' });
+                await loadHistory();
+                alert('✅ История очищена');
+            } catch (e) {
+                alert('❌ Ошибка');
+            }
+        });
+
+        async function loadHistoryItem(id) {
+            try {
+                const resp = await fetch(`/api/history/${id}`);
+                if (!resp.ok) throw new Error();
+                const item = await resp.json();
+                switchTab('calc');
+                currentIngredients = item.ingredients.map(ing => ({
+                    productId: ing.productId,
+                    productName: ing.productName,
+                    weight: ing.weight
+                }));
+                renderIngredients();
+                document.getElementById('recipeNameDisplay').value = item.recipe_name || '';
+                document.getElementById('cookedWeight').value = item.total_weight;
+                document.getElementById('cookingMethod').value = item.cooking_method || 'boil';
+                document.getElementById('cookingCoefficient').value = item.cooking_coefficient || 0.85;
+                if (item.portion_calculated) {
+                    document.getElementById('portionWeightInput').value = item.portion_weight;
+                }
+                // Восстанавливаем результаты
+                const resultData = { per_100g: item.per100, total: item.total };
+                lastCalculation = {
+                    data: resultData,
+                    cookedWeight: item.total_weight,
+                    cookingMethod: item.cooking_method || 'boil',
+                    cookingCoefficient: item.cooking_coefficient || 0.85
+                };
+                showResults(resultData, item.total_weight, item.cooking_method || 'boil', item.cooking_coefficient || 0.85);
+                if (item.portion_calculated) {
+                    document.getElementById('portionArea').style.display = 'block';
+                    document.getElementById('portionResultContent').innerHTML = `
+                        <div class="result-block result-block-portion">
+                            <strong>📦 На порцию (${item.portion_weight} г)</strong><br>
+                            🔥 ${item.portion.kcal.toFixed(1)} ккал
+                        </div>
+                    `;
+                }
+                alert('✅ Расчёт загружен из истории');
+            } catch (e) {
+                alert('❌ Ошибка загрузки');
+            }
+        }
+
+        // ===== КАЛЬКУЛЯТОР =====
+        // Поиск продуктов
+        document.getElementById('productSearch').addEventListener('input', function() {
+            const val = this.value.trim().toLowerCase();
+            const suggest = document.getElementById('productSuggestions');
+            if (!val || !allProducts.length) {
+                suggest.style.display = 'none';
+                return;
+            }
+            const matches = allProducts.filter(p => p.name.toLowerCase().includes(val)).slice(0, 8);
+            if (!matches.length) {
+                suggest.style.display = 'none';
+                return;
+            }
+            suggest.innerHTML = matches.map(p => 
+                `<div class="suggestion-item" data-id="${p.id}">${p.name}</div>`
+            ).join('');
+            suggest.style.display = 'block';
+        });
+
+        document.getElementById('productSuggestions').addEventListener('click', function(e) {
+            const item = e.target.closest('.suggestion-item');
+            if (!item) return;
+            document.getElementById('productSearch').value = item.textContent;
+            this.style.display = 'none';
+        });
+
+        // Добавление ингредиента
+        document.getElementById('addIngredientBtn').addEventListener('click', function() {
+            const name = document.getElementById('productSearch').value.trim();
+            if (!name) { alert('Введите название продукта'); return; }
+            const product = allProducts.find(p => p.name.toLowerCase() === name.toLowerCase());
+            if (!product) { alert('Продукт не найден'); return; }
+            const weight = prompt('Введите вес в граммах:', '100');
+            if (weight === null) return;
+            const w = parseFloat(weight);
+            if (isNaN(w) || w <= 0) { alert('Некорректный вес'); return; }
+            currentIngredients.push({
+                productId: product.id,
+                productName: product.name,
+                weight: w
+            });
+            document.getElementById('productSearch').value = '';
+            renderIngredients();
+        });
+
+        function renderIngredients() {
+            const container = document.getElementById('ingredientList');
+            if (!currentIngredients.length) {
+                container.innerHTML = '<li class="list-group-item text-muted">Добавьте ингредиенты</li>';
+                return;
+            }
+            container.innerHTML = currentIngredients.map((item, idx) =>
+                `<li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><strong>${item.productName}</strong> — ${item.weight} г</span>
+                    <button class="btn btn-sm btn-danger" onclick="removeIngredient(${idx})">✕</button>
+                </li>`
+            ).join('');
+        }
+
+        function removeIngredient(idx) {
+            currentIngredients.splice(idx, 1);
+            renderIngredients();
+        }
+
+        // Расчет
+        document.getElementById('calculateBtn').addEventListener('click', async function() {
+            const cookedWeight = parseFloat(document.getElementById('cookedWeight').value);
+            const cookingMethod = document.getElementById('cookingMethod').value;
+            const cookingCoefficient = parseFloat(document.getElementById('cookingCoefficient').value);
+            const recipeName = document.getElementById('recipeNameDisplay').value.trim() || 'Без названия';
+
+            if (!currentIngredients.length) { alert('Добавьте ингредиенты'); return; }
+            if (isNaN(cookedWeight) || cookedWeight <= 0) { alert('Укажите вес готового блюда'); return; }
+
+            const payload = {
+                ingredients: currentIngredients.map(item => ({
+                    product_id: item.productId,
+                    weight_grams: item.weight
+                })),
+                cooked_weight_grams: cookedWeight,
+                portion_weight_grams: 100
+            };
+
+            try {
+                const resp = await fetch('/api/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!resp.ok) throw new Error();
+
+                const data = await resp.json();
+                const adjustedTotal = {
+                    protein: data.total.protein * cookingCoefficient,
+                    fat: data.total.fat * cookingCoefficient,
+                    carbs: data.total.carbs * cookingCoefficient,
+                    kcal: data.total.kcal * cookingCoefficient
+                };
+                const adjustedPer100 = {
+                    protein: (adjustedTotal.protein / cookedWeight) * 100,
+                    fat: (adjustedTotal.fat / cookedWeight) * 100,
+                    carbs: (adjustedTotal.carbs / cookedWeight) * 100,
+                    kcal: (adjustedTotal.kcal / cookedWeight) * 100
+                };
+                const resultData = { per_100g: adjustedPer100, total: adjustedTotal };
+
+                lastCalculation = {
+                    data: resultData,
+                    cookedWeight: cookedWeight,
+                    cookingMethod: cookingMethod,
+                    cookingCoefficient: cookingCoefficient
+                };
+
+                showResults(resultData, cookedWeight, cookingMethod, cookingCoefficient);
+
+                // Сохраняем в историю
+                const historyEntry = {
+                    recipe_name: recipeName,
+                    ingredients: currentIngredients.map(ing => ({
+                        productId: ing.productId,
+                        productName: ing.productName,
+                        weight: ing.weight
+                    })),
+                    ingredients_count: currentIngredients.length,
+                    total_weight: cookedWeight,
+                    per100: adjustedPer100,
+                    total: adjustedTotal,
+                    cooking_method: cookingMethod,
+                    cooking_coefficient: cookingCoefficient,
+                    portion_calculated: false,
+                    portion_weight: null,
+                    portion: null
+                };
+
+                await fetch('/api/history', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(historyEntry)
+                });
+
+                await loadHistory();
+                alert(`✅ Расчёт для "${recipeName}" сохранён в облаке!`);
+            } catch (e) {
+                alert('❌ Ошибка соединения. Попробуйте позже.');
+            }
+        });
+
+        function showResults(data, cookedWeight, cookingMethod, cookingCoefficient) {
+            const area = document.getElementById('resultArea');
+            const methodNames = { 'boil': 'Варка', 'steam': 'На пару', 'stew': 'Тушение', 'bake': 'Запекание', 'fry': 'Жарка', 'grill': 'Гриль' };
+            const recipeName = document.getElementById('recipeNameDisplay').value.trim() || '';
+            
+            let html = `<h5>📊 Результаты</h5>`;
+            if (recipeName) html += `<div class="recipe-name-badge">📖 ${recipeName}</div>`;
+            html += `
+                <div class="result-block result-block-per100">
+                    <strong>🍽️ На 100 г блюда</strong><br>
+                    🔥 ${data.per_100g.kcal.toFixed(1)} ккал | 🥩 ${data.per_100g.protein.toFixed(1)}г | 🧈 ${data.per_100g.fat.toFixed(1)}г | 🍞 ${data.per_100g.carbs.toFixed(1)}г
+                </div>
+                <div class="result-block result-block-total">
+                    <strong>📦 Всё блюдо (${cookedWeight} г)</strong><br>
+                    🔥 ${data.total.kcal.toFixed(1)} ккал | 🥩 ${data.total.protein.toFixed(1)}г | 🧈 ${data.total.fat.toFixed(1)}г | 🍞 ${data.total.carbs.toFixed(1)}г
+                </div>
+                <div class="text-muted">🍳 ${methodNames[cookingMethod] || cookingMethod} | Коэф. ${cookingCoefficient}</div>
+            `;
+            area.innerHTML = html;
+            
+            document.getElementById('portionArea').style.display = 'block';
+            document.getElementById('portionResultContent').innerHTML = 'Укажите вес порции и нажмите кнопку 🧮';
+        }
+
+        // Расчет порции
+        document.getElementById('calculatePortionBtn').addEventListener('click', async function() {
+            const portionWeight = parseFloat(document.getElementById('portionWeightInput').value);
+            if (!lastCalculation) { alert('Сначала выполните основной расчёт'); return; }
+            if (isNaN(portionWeight) || portionWeight <= 0) { alert('Укажите корректный вес порции'); return; }
+
+            const { data, cookedWeight, cookingMethod, cookingCoefficient } = lastCalculation;
+            const recipeName = document.getElementById('recipeNameDisplay').value.trim() || 'Без названия';
+            
+            const perPortion = {
+                protein: (data.total.protein / cookedWeight) * portionWeight,
+                fat: (data.total.fat / cookedWeight) * portionWeight,
+                carbs: (data.total.carbs / cookedWeight) * portionWeight,
+                kcal: (data.total.kcal / cookedWeight) * portionWeight,
+            };
+
+            document.getElementById('portionResultContent').innerHTML = `
+                <div class="result-block result-block-portion">
+                    <strong>📦 На порцию (${portionWeight} г)</strong><br>
+                    🔥 <strong>${perPortion.kcal.toFixed(1)}</strong> ккал | 🥩 ${perPortion.protein.toFixed(1)}г | 🧈 ${perPortion.fat.toFixed(1)}г | 🍞 ${perPortion.carbs.toFixed(1)}г
+                </div>
+            `;
+
+            // Обновляем последнюю запись в истории с порцией
+            try {
+                const historyResp = await fetch('/api/history');
+                const history = await historyResp.json();
+                if (history.length) {
+                    const last = history[0];
+                    const updateData = {
+                        portion_calculated: true,
+                        portion_weight: portionWeight,
+                        portion: perPortion
+                    };
+                    await fetch(`/api/history/${last.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updateData)
+                    });
+                    await loadHistory();
+                }
+            } catch (e) {
+                console.error('Ошибка обновления истории:', e);
+            }
+
+            alert('✅ Расчёт порции сохранён в истории!');
+        });
+
+        // ===== СОХРАНЕНИЕ РЕЦЕПТА =====
+        document.getElementById('saveRecipeBtn').addEventListener('click', function() {
+            if (!currentIngredients.length) { alert('Добавьте ингредиенты'); return; }
+            document.getElementById('recipeModalName').value = document.getElementById('recipeNameDisplay').value || '';
+            if (!recipeModal) recipeModal = new bootstrap.Modal(document.getElementById('recipeModal'));
+            recipeModal.show();
+        });
+
+        document.getElementById('saveRecipeModalBtn').addEventListener('click', async function() {
+            const name = document.getElementById('recipeModalName').value.trim();
+            if (!name) { alert('Введите название'); return; }
+
+            const ingredients = currentIngredients.map(item => ({
+                product_id: item.productId,
+                weight_grams: item.weight
+            }));
+
+            try {
+                const resp = await fetch('/api/recipes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, ingredients })
+                });
+                if (resp.ok) {
+                    if (recipeModal) recipeModal.hide();
+                    await loadRecipes();
+                    document.getElementById('recipeNameDisplay').value = name;
+                    alert(`✅ Рецепт "${name}" сохранён в облаке!`);
+                }
+            } catch (e) {
+                alert('❌ Ошибка соединения');
+            }
+        });
+
+        // ===== ОЧИСТКА =====
+        document.getElementById('clearAllBtn').addEventListener('click', function() {
+            if (!confirm('Очистить всё?')) return;
+            currentIngredients = [];
+            renderIngredients();
+            document.getElementById('cookedWeight').value = '';
+            document.getElementById('portionWeightInput').value = '';
+            document.getElementById('recipeNameDisplay').value = '';
+            document.getElementById('resultArea').innerHTML = '<h5>📊 Результаты</h5><p class="text-muted">После расчёта здесь появятся данные</p>';
+            document.getElementById('portionArea').style.display = 'none';
+            lastCalculation = null;
+        });
+
+        // ===== ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК =====
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`.tab-btn[data-tab="${tab}"]`)?.classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`tab-${tab}`)?.classList.add('active');
+        }
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                switchTab(this.dataset.tab);
+            });
+        });
+
+        // ===== ЭКСПОРТ/ИМПОРТ =====
+        function exportHistory() {
+            window.open('/api/history', '_blank');
+        }
+
+        async function importHistory(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                for (const item of data) {
+                    await fetch('/api/history', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(item)
+                    });
+                }
+                await loadHistory();
+                alert('✅ История импортирована');
+            } catch (e) {
+                alert('❌ Ошибка импорта');
+            }
+            event.target.value = '';
+        }
+
+        // ===== ИНИЦИАЛИЗАЦИЯ =====
+        document.addEventListener('DOMContentLoaded', function() {
+            loadProducts();
+            loadRecipes();
+            loadHistory();
+        });
+
+        // Коэффициенты для способов приготовления
+        document.getElementById('cookingMethod').addEventListener('change', function() {
+            const coeffs = { 'boil': 0.85, 'steam': 0.90, 'stew': 0.80, 'bake': 0.75, 'fry': 0.70, 'grill': 0.72 };
+            document.getElementById('cookingCoefficient').value = coeffs[this.value] || 0.85;
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+[
+  {
+    "name": "Борщ",
+    "ingredients": [
+      {
+        "product_id": 73,
+        "weight_grams": 4000.0
+      },
+      {
+        "product_id": 79,
+        "weight_grams": 800.0
+      },
+      {
+        "product_id": 305,
+        "weight_grams": 400.0
+      },
+      {
+        "product_id": 272,
+        "weight_grams": 200.0
+      },
+      {
+        "product_id": 222,
+        "weight_grams": 50.0
+      },
+      {
+        "product_id": 229,
+        "weight_grams": 100.0
+      },
+      {
+        "product_id": 248,
+        "weight_grams": 100.0
+      },
+      {
+        "product_id": 336,
+        "weight_grams": 20.0
+      },
+      {
+        "product_id": 353,
+        "weight_grams": 50.0
+      },
+      {
+        "product_id": 162,
+        "weight_grams": 200.0
+      }
+    ]
+  }
+]
